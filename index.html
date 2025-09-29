@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ZenChain Staking & Daily Activities</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Ethers.js and WalletConnect -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider/dist/umd/index.min.js"></script>
+
+<style>
+  /* ZenChain colors */
+  :root {
+    --zen-green: #00ff7f;
+    --zen-yellow: #ffff00;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Inter", sans-serif;
+    color: #eaeaea;
+    background: radial-gradient(circle at top left, #001a22, #000);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 25px;
+  }
+
+  header img {
+    width: 50px;
+    height: 50px;
+  }
+
+  header h1 {
+    font-size: 2rem;
+    background: linear-gradient(90deg, var(--zen-green), var(--zen-yellow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shine 4s linear infinite;
+  }
+
+  @keyframes shine {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* Container */
+  .container { width: 100%; max-width: 700px; }
+
+  /* Card */
+  .card {
+    background: rgba(15,26,34,.85);
+    border: 1px solid #003a50;
+    border-radius: 18px;
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 0 25px rgba(0,255,127,.25);
+    backdrop-filter: blur(14px);
+    transition: transform 0.3s;
+  }
+
+  .card:hover { transform: translateY(-5px); }
+
+  h2 { color: var(--zen-green); margin-bottom: 12px; }
+
+  input, select {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 12px;
+    background: #14232b;
+    color: #eaeaea;
+    font-size: 1rem;
+  }
+
+  button {
+    background: linear-gradient(90deg, var(--zen-green), var(--zen-yellow));
+    border: none;
+    color: #000;
+    font-weight: 600;
+    padding: 12px 18px;
+    margin-top: 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  button:hover {
+    box-shadow: 0 0 15px rgba(0,255,127,.6);
+    transform: scale(1.03);
+  }
+
+  #accountInfo {
+    margin: 10px 0;
+    font-size: 0.95rem;
+    color: #bbb;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .copy-btn {
+    background: #222;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+
+  /* Modal */
+  .modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+    background: #111;
+    border-radius: 18px;
+    padding: 25px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+  }
+
+  .wallet-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin: 20px 0;
+  }
+
+  .wallet-btn {
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 15px;
+    cursor: pointer;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .wallet-btn:hover { background: #222; transform: scale(1.05); }
+
+  .wallet-btn img { width: 40px; height: 40px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px; right: 20px;
+    background: #0a1e26;
+    color: #fff;
+    padding: 14px 20px;
+    border-radius: 12px;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.4s;
+    z-index: 9999;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Daily buttons */
+  .daily-btn {
+    background: #001a22;
+    color: var(--zen-green);
+    padding: 10px 15px;
+    border-radius: 10px;
+    margin-top: 5px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .daily-btn:hover {
+    box-shadow: 0 0 10px var(--zen-green);
+    transform: scale(1.05);
+  }
+
+  footer {
+    margin-top: 20px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  footer a {
+    color: var(--zen-green);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  footer a:hover { text-decoration: underline; }
+
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <img src="https://raw.githubusercontent.com/ZenChain/logo/main/zenchain-logo.png" alt="ZenChain Logo">
+  <h1>ZenChain Daily DApp</h1>
+</header>
+
+<!-- Main container -->
+<div class="container">
+
+  <button onclick="openModal()">Connect Wallet</button>
+  <div id="accountInfo">Not connected</div>
+
+  <!-- Dashboard -->
+  <div class="card">
+    <h2>Dashboard</h2>
+    <p id="balance">Balance: —</p>
+    <p id="staked">Staked: —</p>
+    <p id="rewards">Rewards: —</p>
+    <p id="era">Era: —</p>
+  </div>
+
+  <!-- Stake -->
+  <div class="card">
+    <h2>Stake</h2>
+    <input type="text" id="inputAmount" placeholder="Amount (ZTC)">
+    <select id="selDest">
+      <option value="0">Restake</option>
+      <option value="1">Stash</option>
+      <option value="2">None</option>
+    </select>
+    <button onclick="stake()">Stake</button>
+  </div>
+
+  <!-- Unstake -->
+  <div class="card">
+    <h2>Unstake</h2>
+    <input type="text" id="inputUnbond" placeholder="Unbond amount (ZTC)">
+    <button onclick="unbond()">Unbond</button>
+    <button onclick="withdrawUnbonded()">Withdraw Unbonded</button>
+  </div>
+
+  <!-- Claim Rewards -->
+  <div class="card">
+    <h2>Claim Rewards</h2>
+    <input type="text" id="inputValidator" placeholder="Validator address">
+    <input type="number" id="inputEra" placeholder="Era">
+    <input type="number" id="inputPage" placeholder="Page">
+    <button onclick="claimRewards()">Claim</button>
+  </div>
+
+  <!-- Fast Unstake -->
+  <div class="card">
+    <h2>Fast Unstake</h2>
+    <input type="text" id="inputFastUnstake" placeholder="Amount (ZTC)">
+    <button onclick="fastUnstake()">Fast Unstake</button>
+  </div>
+
+  <!-- Daily Activities -->
+  <div class="card">
+    <h2>Daily ZenChain Activities</h2>
+    <button class="daily-btn" onclick="dailyFaucet()">Claim Daily Faucet</button>
+    <button class="daily-btn" onclick="dailyStake()">Daily GM Staking</button>
+    <button class="daily-btn" onclick="sayGM()">Send GM</button>
+  </div>
+
+</div>
+
+<!-- Wallet Modal -->
+<div class="modal" id="walletModal">
+  <div class="modal-content">
+    <h2>Connect a Wallet</h2>
+    <div class="wallet-options">
+      <div class="wallet-btn" onclick="connectMetaMask()">
+        <img src="https://metamask.io/images/metamask-fox.svg" alt="MetaMask">
+        <span>MetaMask</span>
+      </div>
+      <div class="wallet-btn" onclick="connectWalletConnect()">
+        <img src="https://avatars.githubusercontent.com/u/37784886?s=200&v=4" alt="WalletConnect">
+        <span>WalletConnect</span>
+      </div>
+      <div class="wallet-btn" onclick="connectCoinbase()">
+        <img src="https://avatars.githubusercontent.com/u/18060234?s=200&v=4" alt="Coinbase">
+        <span>Coinbase</span>
+      </div>
+      <div class="wallet-btn" onclick="connectRainbow()">
+        <img src="https://avatars.githubusercontent.com/u/6078720?s=200&v=4" alt="Rainbow">
+        <span>Rainbow</span>
+      </div>
+    </div>
+    <button onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Footer -->
+<footer>
+  <a href="https://discord.gg/zenchain" target="_blank">Discord</a>
+  <a href="https://t.me/ZenchainAnnouncements" target="_blank">Telegram</a>
+  <a href="https://x.com/zen_chain" target="_blank">X @zen_chain</a>
+</footer>
+
+<script>
+/* ====== Wallet & Staking Script ====== */
+const rpcUrl = "https://zenchain-testnet.api.onfinality.io/public";
+const STAKING_ADDRESS = "0x0000000000000000000000000000000000000800";
+const FAST_UNSTAKE_ADDRESS = "0x0000000000000000000000000000000000000801";
+const FAUCET_ADDRESS = "0x0000000000000000000000000000000000000802";
+
+const stakingAbi = [
+  "function bondWithRewardDestination(uint256 value,uint8 dest)",
+  "function unbond(uint256 value)",
+  "function withdrawUnbonded(uint32 numSlashingSpans)",
+  "function payoutStakersByPage(address validatorStash,uint32 era,uint32 page)"
+];
+
+const fastUnstakeAbi = ["function registerFastUnstake(uint256 value)"];
+const faucetAbi = ["function claimDailyFaucet()"];
+
+let provider, signer, account;
+
+// Show toast notification
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.innerText = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// Modal
+function openModal() { document.getElementById("walletModal").style.display = "flex"; }
+function closeModal() { document.getElementById("walletModal").style.display = "none"; }
+
+// Connect wallets
+async function connectMetaMask() {
+  if(!window.ethereum) return showToast("MetaMask not found");
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await window.ethereum.request({ method: "eth_requestAccounts" });
+  signer = await provider.getSigner();
+  account = await signer.getAddress();
+  renderAccount();
+  closeModal();
+  updateDashboard();
+
+  // Handle account/chain changes
+  window.ethereum.on("accountsChanged", async accounts => {
+    account = accounts[0] || null;
+    signer = await provider.getSigner();
+    renderAccount();
+    updateDashboard();
+  });
+  window.ethereum.on("chainChanged", () => location.reload());
+}
+
+async function connectWalletConnect() {
+  const wc = new WalletConnectProvider.default({ rpc: { 8408: rpcUrl } });
+  await wc.enable();
+  provider = new ethers.BrowserProvider(wc);
+  signer = await provider.getSigner();
+  account = await signer.getAddress();
+  renderAccount();
+  closeModal();
+  updateDashboard();
+}
+
+async function connectCoinbase() { return connectWalletConnect(); }
+async function connectRainbow() { return connectWalletConnect(); }
+
+function renderAccount() {
+  document.getElementById("accountInfo").innerHTML = account
+    ? `Connected: ${account.substring(0,6)}...${account.slice(-4)} <button class="copy-btn" onclick="copyAddr()">Copy</button>`
+    : "Not connected";
+}
+
+function copyAddr() { navigator.clipboard.writeText(account); showToast("Copied!"); }
+
+async function updateDashboard() {
+  if(!provider || !account) return;
+  const bal = await provider.getBalance(account);
+  document.getElementById("balance").innerText = "Balance: " + ethers.formatEther(bal) + " ZTC";
+  document.getElementById("staked").innerText = "Staked: —";
+  document.getElementById("rewards").innerText = "Rewards: —";
+  document.getElementById("era").innerText = "Era: —";
+}
+setInterval(updateDashboard, 15000);
+
+function toWei(value) { return ethers.parseUnits(value,18); }
+
+// Staking
+async function stake() {
+  const amt = document.getElementById("inputAmount").value;
+  const dest = parseInt(document.getElementById("selDest").value);
+  if(!amt) return showToast("Enter amount");
+  const c = new ethers.Contract(STAKING_ADDRESS, stakingAbi, signer);
+  const tx = await c.bondWithRewardDestination(toWei(amt), dest);
+  showToast("Staking...");
+  await tx.wait();
+  showToast("✅ Staked!");
+  updateDashboard();
+}
+
+async function unbond() {
+  const amt = document.getElementById("inputUnbond").value;
+  if(!amt) return showToast("Enter amount");
+  const c = new ethers.Contract(STAKING_ADDRESS, stakingAbi, signer);
+  const tx = await c.unbond(toWei(amt));
+  showToast("Unbonding...");
+  await tx.wait();
+  showToast("✅ Unbonded!");
+}
+
+async function withdrawUnbonded() {
+  const c = new ethers.Contract(STAKING_ADDRESS, stakingAbi, signer);
+  const tx = await c.withdrawUnbonded(0);
+  showToast("Withdrawing...");
+  await tx.wait();
+  showToast("✅ Withdrawn!");
+  updateDashboard();
+}
+
+async function claimRewards() {
+  const val = document.getElementById("inputValidator").value;
+  const era = parseInt(document.getElementById("inputEra").value);
+  const page = parseInt(document.getElementById("inputPage").value);
+  if(!val || isNaN(era) || isNaN(page)) return showToast("Fill validator, era, page");
+  const c = new ethers.Contract(STAKING_ADDRESS, stakingAbi, signer);
+  const tx = await c.payoutStakersByPage(val, era, page);
+  showToast("Claiming...");
+  await tx.wait();
+  showToast("✅ Rewards claimed!");
+}
+
+async function fastUnstake() {
+  const amt = document.getElementById("inputFastUnstake").value;
+  if(!amt) return showToast("Enter amount");
+  const c = new ethers.Contract(FAST_UNSTAKE_ADDRESS, fastUnstakeAbi, signer);
+  const tx = await c.registerFastUnstake(toWei(amt));
+  showToast("Fast Unstake...");
+  await tx.wait();
+  showToast("✅ Done!");
+}
+
+// Daily Activities
+async function dailyFaucet() {
+  if(!account) return showToast("Connect wallet first");
+  const c = new ethers.Contract(FAUCET_ADDRESS, faucetAbi, signer);
+  const tx = await c.claimDailyFaucet();
+  showToast("Claiming daily faucet...");
+  await tx.wait();
+  showToast("✅ Faucet claimed!");
+}
+
+async function dailyStake() {
+  if(!account) return showToast("Connect wallet first");
+  const c = new ethers.Contract(STAKING_ADDRESS, stakingAbi, signer);
+  const tx = await c.bondWithRewardDestination(toWei("1"), 0);
+  showToast("Daily GM staking...");
+  await tx.wait();
+  showToast("✅ Daily stake done!");
+}
+
+function sayGM() {
+  if(!account) return showToast("Connect wallet first");
+  showToast("🌞 GM! Have a great ZenChain day!");
+}
+</script>
+</body>
+</html>
